@@ -16,5 +16,6 @@ import { SyncLog } from '../database/entities/sync-log.entity';
   ],
   controllers: [SyncController],
   providers: [SyncService],
+  exports: [SyncService],
 })
 export class SyncModule {}
