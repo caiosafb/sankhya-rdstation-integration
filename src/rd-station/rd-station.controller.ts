@@ -1,50 +1,69 @@
-import { Controller, Post, Put, Get, Body, Param, Query } from '@nestjs/common';
-import { RdStationService } from './rd-station.service';
 import {
-  CreateProductDto,
-  UpdateProductDto,
-  CreateOrganizationDto,
+  Controller,
+  Post,
+  Patch,
+  Get,
+  Body,
+  Param,
+  Query,
+} from "@nestjs/common";
+import { RdStationService } from "./rd-station.service";
+import {
   CreateContactDto,
   UpdateContactDto,
-} from './dto';
+  ConversionDto,
+  CreateEventDto,
+} from "./dto";
 
-@Controller('rdstation')
+@Controller("rdstation")
 export class RdStationController {
   constructor(private readonly rdStationService: RdStationService) {}
 
-  @Post('produtos')
-  async createProduct(@Body() product: CreateProductDto) {
-    return this.rdStationService.createProduct(product);
-  }
-
-  @Put('produtos/:id')
-  async updateProduct(
-    @Param('id') id: string,
-    @Body() product: UpdateProductDto,
+  @Patch("contacts/:email")
+  async createOrUpdateContact(
+    @Param("email") email: string,
+    @Body() contact: CreateContactDto
   ) {
-    return this.rdStationService.updateProduct(id, product);
+    return this.rdStationService.createOrUpdateContact(email, contact);
   }
 
-  @Post('empresas')
-  async createOrganization(@Body() org: CreateOrganizationDto) {
-    return this.rdStationService.createOrganization(org);
-  }
-
-  @Post('contato')
-  async createContact(@Body() contact: CreateContactDto) {
-    return this.rdStationService.createContact(contact);
-  }
-
-  @Get('contato')
-  async getContact(@Query('email') email: string) {
+  @Get("contacts/:email")
+  async getContact(@Param("email") email: string) {
     return this.rdStationService.getContact(email);
   }
 
-  @Put('contato/:id')
-  async updateContact(
-    @Param('id') id: string,
-    @Body() contact: UpdateContactDto,
-  ) {
-    return this.rdStationService.updateContact(id, contact);
+  @Post("conversions")
+  async createConversion(@Body() conversion: ConversionDto) {
+    return this.rdStationService.createConversion(conversion);
+  }
+
+  @Post("events")
+  async createEvent(@Body() event: CreateEventDto) {
+    return this.rdStationService.createEvent(event);
+  }
+
+  @Post("contacts/:email/tags")
+  async addTags(@Param("email") email: string, @Body("tags") tags: string[]) {
+    return this.rdStationService.addTagsToContact(email, tags);
+  }
+
+  @Post("webhook")
+  async handleWebhook(@Body() payload: any) {
+    console.log("Webhook received:", {
+      event_type: payload.event_type,
+      event_uuid: payload.event_uuid,
+      entity_type: payload.entity_type,
+    });
+
+    switch (payload.event_type) {
+      case "CONTACT_CREATED":
+        break;
+      case "CONTACT_UPDATED":
+        break;
+      case "CONVERSION":
+        break;
+    }
+
+    return { status: "received", event_uuid: payload.event_uuid };
   }
 }
