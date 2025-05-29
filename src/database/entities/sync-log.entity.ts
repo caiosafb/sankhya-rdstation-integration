@@ -1,6 +1,11 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+} from "typeorm";
 
-@Entity('sync_logs')
+@Entity("sync_logs")
 export class SyncLog {
   @PrimaryGeneratedColumn()
   id: number;
@@ -20,7 +25,7 @@ export class SyncLog {
   @Column()
   status: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: "jsonb", nullable: true })
   data: any;
 
   @Column({ nullable: true })
