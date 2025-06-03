@@ -6,8 +6,14 @@ import {
   Body,
   Param,
   Query,
+  Headers,
+  HttpException,
+  HttpStatus,
 } from "@nestjs/common";
 import { RdStationService } from "./rd-station.service";
+import { WebhookService } from "../webhook/webhook.service";
+import { ConfigService } from "@nestjs/config";
+import * as crypto from "crypto";
 import {
   CreateContactDto,
   UpdateContactDto,
@@ -17,7 +23,15 @@ import {
 
 @Controller("rdstation")
 export class RdStationController {
-  constructor(private readonly rdStationService: RdStationService) {}
+  private readonly webhookSecret: string;
+
+  constructor(
+    private readonly rdStationService: RdStationService,
+    private readonly webhookService: WebhookService,
+    private readonly configService: ConfigService
+  ) {
+    this.webhookSecret = this.configService.get<string>("WEBHOOK_SECRET") || "";
+  }
 
   @Patch("contacts/:email")
   async createOrUpdateContact(
@@ -48,22 +62,84 @@ export class RdStationController {
   }
 
   @Post("webhook")
-  async handleWebhook(@Body() payload: any) {
-    console.log("Webhook received:", {
-      event_type: payload.event_type,
-      event_uuid: payload.event_uuid,
-      entity_type: payload.entity_type,
-    });
+  async handleWebhook(
+    @Body() payload: any,
+    @Headers("x-rd-signature") signature: string
+  ) {
+    if (
+      this.webhookSecret &&
+      this.configService.get<boolean>("WEBHOOK_VALIDATE_SIGNATURE")
+    ) {
+      const isValid = this.validateWebhookSignature(payload, signature);
 
-    switch (payload.event_type) {
-      case "CONTACT_CREATED":
-        break;
-      case "CONTACT_UPDATED":
-        break;
-      case "CONVERSION":
-        break;
+      if (!isValid) {
+        throw new HttpException(
+          "Invalid webhook signature",
+          HttpStatus.UNAUTHORIZED
+        );
+      }
     }
 
-    return { status: "received", event_uuid: payload.event_uuid };
+    console.log("Webhook received:", {
+      event_type: payload.event_type,
+      event_name: payload.event_name,
+      event_uuid: payload.event_uuid || payload.transaction_uuid,
+    });
+
+    try {
+      await this.webhookService.processWebhook(payload);
+
+      return {
+        status: "received",
+        event_uuid: payload.event_uuid || payload.transaction_uuid,
+      };
+    } catch (error) {
+      console.error("Error processing webhook:", error);
+
+      return {
+        status: "received_with_error",
+        event_uuid: payload.event_uuid || payload.transaction_uuid,
+        error: error.message,
+      };
+    }
+  }
+
+  private validateWebhookSignature(payload: any, signature: string): boolean {
+    if (!signature || !this.webhookSecret) {
+      return false;
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", this.webhookSecret)
+      .update(JSON.stringify(payload))
+      .digest("hex");
+
+    return signature === expectedSignature;
+  }
+
+  @Post("webhook/test")
+  async testWebhook() {
+    const testPayload = {
+      event_type: "WEBHOOK.CONVERTED",
+      event_uuid: "test-" + Date.now(),
+      leads: [
+        {
+          email: "test@example.com",
+          name: "Test Lead",
+          tags: ["fornecedor", "test"],
+          custom_fields: {
+            cf_tipo: "fornecedor",
+            cf_cpf_cnpj: "12345678901",
+          },
+        },
+      ],
+    };
+
+    await this.webhookService.processWebhook(testPayload);
+
+    return {
+      message: "Test webhook processed",
+      payload: testPayload,
+    };
   }
 }
