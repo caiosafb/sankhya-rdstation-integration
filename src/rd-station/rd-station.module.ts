@@ -4,6 +4,8 @@ import { BullModule } from "@nestjs/bull";
 import { RdStationService } from "./rd-station.service";
 import { RdStationController } from "./rd-station.controller";
 import { RdStationProcessor } from './rd-station.processor';
+import { WebhookModule } from '../webhook/webhook.module';
+
 
 @Module({
   imports: [
@@ -11,6 +13,7 @@ import { RdStationProcessor } from './rd-station.processor';
     BullModule.registerQueue({
       name: "rd-station-queue",
     }),
+    WebhookModule,
   ],
   controllers: [RdStationController],
   providers: [RdStationService, RdStationProcessor],

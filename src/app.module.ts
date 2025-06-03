@@ -5,6 +5,8 @@ import { BullModule } from '@nestjs/bull';
 import { SankhyaModule } from './sankhya/sankhya.module';
 import { RdStationModule } from './rd-station/rd-station.module';
 import { SyncModule } from './sync/sync.module';
+import { WebhookModule } from './webhook/webhook.module';
+
 
 @Module({
   imports: [
@@ -27,6 +29,7 @@ import { SyncModule } from './sync/sync.module';
     SankhyaModule,
     RdStationModule,
     SyncModule,
+    WebhookModule,
   ],
 })
 export class AppModule {}
