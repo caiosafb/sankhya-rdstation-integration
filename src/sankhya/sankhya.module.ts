@@ -3,6 +3,7 @@ import { HttpModule } from "@nestjs/axios";
 import { BullModule } from "@nestjs/bull";
 import { SankhyaService } from "./sankhya.service";
 import { SankhyaController } from "./sankhya.controller";
+import { SankhyaProcessor } from './sankhya.processor';
 
 @Module({
   imports: [
@@ -12,7 +13,7 @@ import { SankhyaController } from "./sankhya.controller";
     }),
   ],
   controllers: [SankhyaController],
-  providers: [SankhyaService],
+  providers: [SankhyaService, SankhyaProcessor],
   exports: [SankhyaService],
 })
 export class SankhyaModule {}
