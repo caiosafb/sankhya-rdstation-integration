@@ -11,12 +11,11 @@ async function createWebhook() {
     const conversionWebhook = await axios.post(
       "https://api.rd.services/integrations/webhooks",
       {
-        webhook: {
-          url: webhookUrl,
-          event_type: "WEBHOOK.CONVERTED",
-          webhook_type: "lead",
-          include_relations: ["tags", "custom_fields"],
-        },
+        entity_type: "LEADS",
+        event_type: "WEBHOOK.CONVERTED",
+        url: webhookUrl,
+        http_method: "POST",
+        include_relations: ["TAGS", "FIELDS"],
       },
       {
         headers: {
@@ -31,12 +30,11 @@ async function createWebhook() {
     const opportunityWebhook = await axios.post(
       "https://api.rd.services/integrations/webhooks",
       {
-        webhook: {
-          url: webhookUrl,
-          event_type: "WEBHOOK.MARKED_OPPORTUNITY",
-          webhook_type: "lead",
-          include_relations: ["tags", "custom_fields"],
-        },
+        entity_type: "LEADS",
+        event_type: "WEBHOOK.MARKED_OPPORTUNITY",
+        url: webhookUrl,
+        http_method: "POST",
+        include_relations: ["TAGS", "FIELDS"],
       },
       {
         headers: {
@@ -47,26 +45,6 @@ async function createWebhook() {
     );
 
     console.log("Webhook de oportunidade criado:", opportunityWebhook.data);
-
-    const dealWebhook = await axios.post(
-      "https://api.rd.services/integrations/webhooks",
-      {
-        webhook: {
-          entity_type: "deals",
-          event_types: ["deal.created", "deal.updated", "deal.won"],
-          url: webhookUrl,
-          http_method: "POST",
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    console.log("Webhook de negociações criado:", dealWebhook.data);
   } catch (error) {
     console.error(
       "Erro ao criar webhook:",
@@ -88,14 +66,15 @@ async function listWebhooks() {
       }
     );
 
-    console.log("Webhooks existentes:");
+    console.log("📋 Webhooks existentes:");
+    console.log("Total:", response.data.webhooks.length);
+
     response.data.webhooks.forEach((webhook: any, index: number) => {
-      console.log(
-        `\n${index + 1}. ${webhook.event_type || webhook.entity_type}`
-      );
+      console.log(`\n${index + 1}. ${webhook.event_type}`);
       console.log(`   URL: ${webhook.url}`);
       console.log(`   ID: ${webhook.uuid}`);
-      console.log(`   Status: ${webhook.status}`);
+      console.log(`   Status: ${webhook.status || "active"}`);
+      console.log(`   Criado em: ${webhook.created_at}`);
     });
   } catch (error) {
     console.error(
@@ -127,6 +106,47 @@ async function deleteWebhook(webhookId: string) {
   }
 }
 
+async function testWebhook() {
+  const webhookUrl = process.env.RD_STATION_CALLBACK_URL + "/rdstation/webhook";
+
+  console.log(`Enviando payload de teste para: ${webhookUrl}`);
+
+  const testPayload = {
+    event_type: "WEBHOOK.CONVERTED",
+    event_uuid: "test-" + Date.now(),
+    event_timestamp: new Date().toISOString(),
+    leads: [
+      {
+        uuid: "lead-test-123",
+        email: "teste@empresa.com.br",
+        name: "Empresa Teste LTDA",
+        personal_phone: "11999999999",
+        tags: ["fornecedor", "teste"],
+        conversion_identifier: "teste-manual",
+        custom_fields: {
+          cf_tipo: "fornecedor",
+          cf_cpf_cnpj: "12.345.678/0001-90",
+        },
+      },
+    ],
+  };
+
+  try {
+    const response = await axios.post(webhookUrl, testPayload, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log("Teste enviado com sucesso:", response.data);
+  } catch (error) {
+    console.error(
+      "Erro ao testar webhook:",
+      error.response?.data || error.message
+    );
+  }
+}
+
 const command = process.argv[2];
 
 switch (command) {
@@ -139,15 +159,19 @@ switch (command) {
   case "delete":
     const webhookId = process.argv[3];
     if (!webhookId) {
-      console.error("Por favor, forneça o ID do webhook para deletar");
+      console.error("Forneça o ID do webhook para deletar");
       console.log("Uso: npm run webhook:delete <webhook-id>");
     } else {
       deleteWebhook(webhookId);
     }
+    break;
+  case "test":
+    testWebhook();
     break;
   default:
     console.log("Comandos disponíveis:");
     console.log("  npm run webhook:create - Criar webhooks");
     console.log("  npm run webhook:list   - Listar webhooks");
     console.log("  npm run webhook:delete <id> - Deletar webhook");
+    console.log("  npm run webhook:test   - Testar webhook localmente");
 }
