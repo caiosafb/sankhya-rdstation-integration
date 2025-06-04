@@ -1,5 +1,6 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { HttpModule } from '@nestjs/axios';
 import { WebhookService } from "./webhook.service";
 import { SankhyaModule } from "../sankhya/sankhya.module";
 import { RdStationModule } from "../rd-station/rd-station.module";
@@ -11,9 +12,10 @@ import { WebhookManagementService } from './webhook-management.service';
 
 @Module({
   imports: [
+    HttpModule,
     TypeOrmModule.forFeature([SyncLog]),
     SankhyaModule,
-    RdStationModule,
+    forwardRef(() => RdStationModule), 
   ],
   controllers: [WebhookManagementController],
   providers: [WebhookService, WebhookManagementService],
