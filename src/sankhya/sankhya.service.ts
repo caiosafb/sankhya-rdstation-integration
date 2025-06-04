@@ -1,8 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
-import { InjectQueue } from "@nestjs/bull";
-import { Queue } from "bull";
 import { firstValueFrom } from "rxjs";
 import {
   FornecedorDto,
@@ -24,8 +22,7 @@ export class SankhyaService {
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly configService: ConfigService,
-    @InjectQueue("sankhya-queue") private sankhyaQueue: Queue
+    private readonly configService: ConfigService
   ) {
     this.baseUrl = this.configService.get<string>("SANKHYA_BASE_URL");
     this.token = this.configService.get<string>("SANKHYA_TOKEN");
@@ -93,12 +90,48 @@ export class SankhyaService {
     return response.data.responseBody.entities.map(this.mapToFornecedorDto);
   }
 
-  async createFornecedor(fornecedor: CreateFornecedorDto): Promise<any> {
+  async createFornecedor(fornecedor: CreateFornecedorDto): Promise<number> {
     await this.ensureAuthenticated();
 
-    await this.sankhyaQueue.add("create-fornecedor", fornecedor);
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${this.baseUrl}/service.sbr`,
+          {
+            serviceName: "CRUDServiceProvider.saveRecord",
+            requestBody: {
+              dataSet: {
+                rootEntity: "Parceiro",
+                dataRow: {
+                  localFields: {
+                    NOMEPARC: fornecedor.nome,
+                    EMAIL: fornecedor.email,
+                    TELEFONE: fornecedor.telefone || "",
+                    CGC_CPF: fornecedor.cpfCnpj,
+                    TIPPESSOA: fornecedor.tipo,
+                    FORNECEDOR: "S",
+                    CLIENTE: "S",
+                    ATIVO: "S",
+                  },
+                },
+              },
+            },
+          },
+          this.getHeaders()
+        )
+      );
 
-    return { message: "Fornecedor adicionado à fila de processamento" };
+      const codParc = response.data.responseBody.primaryKey?.CODPARC;
+      this.logger.log(`Fornecedor criado com sucesso. ID: ${codParc}`);
+
+      return codParc;
+    } catch (error) {
+      this.logger.error(
+        `Falha ao criar fornecedor: ${fornecedor.email}`,
+        error.response?.data || error
+      );
+      throw error;
+    }
   }
 
   async getEmpresas(filters?: any): Promise<EmpresaDto[]> {
@@ -175,12 +208,76 @@ export class SankhyaService {
     return response.data.responseBody.entities.map(this.mapToPedidoDto);
   }
 
-  async createPedido(pedido: CreatePedidoDto): Promise<any> {
+  async createPedido(pedido: CreatePedidoDto): Promise<number> {
     await this.ensureAuthenticated();
 
-    await this.sankhyaQueue.add("create-pedido", pedido);
+    try {
+      const cabecalhoResponse = await firstValueFrom(
+        this.httpService.post(
+          `${this.baseUrl}/service.sbr`,
+          {
+            serviceName: "CRUDServiceProvider.saveRecord",
+            requestBody: {
+              dataSet: {
+                rootEntity: "CabecalhoNota",
+                dataRow: {
+                  localFields: {
+                    CODPARC: pedido.clienteId,
+                    CODEMP: pedido.empresaId,
+                    CODVEND: pedido.vendedorId,
+                    DTNEG: new Date().toISOString(),
+                    TIPMOV: "V", 
+                    STATUSNOTA: "L", 
+                  },
+                },
+              },
+            },
+          },
+          this.getHeaders()
+        )
+      );
 
-    return { message: "Pedido adicionado à fila de processamento" };
+      const nunota = cabecalhoResponse.data.responseBody.primaryKey?.NUNOTA;
+
+      if (!nunota) {
+        throw new Error("Falha ao obter NUNOTA da resposta");
+      }
+
+      for (const item of pedido.produtos) {
+        await firstValueFrom(
+          this.httpService.post(
+            `${this.baseUrl}/service.sbr`,
+            {
+              serviceName: "CRUDServiceProvider.saveRecord",
+              requestBody: {
+                dataSet: {
+                  rootEntity: "ItemNota",
+                  dataRow: {
+                    localFields: {
+                      NUNOTA: nunota,
+                      CODPROD: item.produtoId,
+                      QTDNEG: item.quantidade,
+                      VLRUNIT: item.precoUnitario,
+                      VLRTOT: item.quantidade * item.precoUnitario,
+                    },
+                  },
+                },
+              },
+            },
+            this.getHeaders()
+          )
+        );
+      }
+
+      this.logger.log(`Pedido criado com sucesso. NUNOTA: ${nunota}`);
+      return nunota;
+    } catch (error) {
+      this.logger.error(
+        `Falha ao criar pedido para cliente: ${pedido.clienteId}`,
+        error.response?.data || error
+      );
+      throw error;
+    }
   }
 
   async getVendedores(filters?: any): Promise<VendedorDto[]> {

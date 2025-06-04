@@ -1,7 +1,17 @@
-version: '3.8'
+# version: '3.8'
 
-services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+# services:
+
+#   postgres:
+#     image: postgres:15
+#     environment:
+#       POSTGRES_DB: ${DB_NAME:-sankhya_integration}
+#       POSTGRES_USER: ${DB_USER:-integration_user}
+#       POSTGRES_PASSWORD: ${DB_PASSWORD:-integration_pass}
+#     ports:
+#       - "5433:5432"  
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+
+# volumes:
+#   postgres_data:

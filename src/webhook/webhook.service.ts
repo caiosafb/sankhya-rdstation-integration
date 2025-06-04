@@ -70,18 +70,34 @@ export class WebhookService {
       lead.custom_fields?.cf_tipo === "fornecedor";
 
     if (isFornecedor && !lead.custom_fields?.cf_sankhya_id) {
-      const fornecedorData: CreateFornecedorDto = {
-        nome: lead.name || lead.email,
-        email: lead.email,
-        telefone: lead.personal_phone || lead.mobile_phone || "",
-        cpfCnpj: lead.custom_fields?.cf_cpf_cnpj || "",
-        tipo: this.detectTipoPessoa(lead.custom_fields?.cf_cpf_cnpj),
-      };
+      try {
+        const fornecedorData: CreateFornecedorDto = {
+          nome: lead.name || lead.email,
+          email: lead.email,
+          telefone: lead.personal_phone || lead.mobile_phone || "",
+          cpfCnpj: lead.custom_fields?.cf_cpf_cnpj || "",
+          tipo: this.detectTipoPessoa(lead.custom_fields?.cf_cpf_cnpj),
+        };
 
-      await this.sankhyaService.createFornecedor(fornecedorData);
-      this.logger.log(
-        `Fornecedor criado no Sankhya a partir da conversão: ${lead.email}`
-      );
+        const sankhyaId =
+          await this.sankhyaService.createFornecedor(fornecedorData);
+        this.logger.log(`Fornecedor criado no Sankhya. ID: ${sankhyaId}`);
+
+        if (sankhyaId) {
+          await this.rdStationService.createOrUpdateContact(lead.email, {
+            email: lead.email,
+            custom_fields: {
+              cf_sankhya_id: sankhyaId.toString(),
+            },
+          });
+          this.logger.log(
+            `Contato atualizado no RD Station com Sankhya ID: ${sankhyaId}`
+          );
+        }
+      } catch (error) {
+        this.logger.error(`Erro ao criar fornecedor: ${lead.email}`, error);
+        throw error;
+      }
     }
 
     if (
@@ -125,7 +141,7 @@ export class WebhookService {
         try {
           const orderItems = JSON.parse(lead.custom_fields.cf_order_items);
 
-          await this.sankhyaService.createPedido({
+          const pedidoId = await this.sankhyaService.createPedido({
             clienteId: clienteId,
             empresaId: lead.custom_fields?.cf_empresa_id || 1,
             vendedorId: lead.custom_fields?.cf_vendedor_id || 1,
@@ -136,12 +152,12 @@ export class WebhookService {
             })),
           });
 
-          this.logger.log(`Pedido criado a partir da conversão: ${lead.email}`);
+          this.logger.log(`Pedido criado no Sankhya. NUNOTA: ${pedidoId}`);
         } catch (parseError) {
           this.logger.error("Erro ao parsear itens do pedido", parseError);
         }
       } else if (lead.custom_fields?.cf_order_total_value) {
-        await this.sankhyaService.createPedido({
+        const pedidoId = await this.sankhyaService.createPedido({
           clienteId: clienteId,
           empresaId: 1,
           vendedorId: 1,
@@ -157,7 +173,7 @@ export class WebhookService {
         });
 
         this.logger.log(
-          `Pedido genérico criado a partir da conversão: ${lead.email}`
+          `Pedido genérico criado no Sankhya. NUNOTA: ${pedidoId}`
         );
       }
     } catch (error) {
@@ -173,7 +189,7 @@ export class WebhookService {
       );
 
       if (valorOportunidade > 0) {
-        await this.sankhyaService.createPedido({
+        const pedidoId = await this.sankhyaService.createPedido({
           clienteId: clienteId,
           empresaId: 1,
           vendedorId: 1,
@@ -187,7 +203,7 @@ export class WebhookService {
         });
 
         this.logger.log(
-          `Pedido criado a partir da oportunidade: ${lead.email} - Valor: ${valorOportunidade}`
+          `Pedido criado a partir da oportunidade. NUNOTA: ${pedidoId} - Valor: ${valorOportunidade}`
         );
       }
     } catch (error) {
@@ -199,12 +215,16 @@ export class WebhookService {
   }
 
   private async findOrCreateCliente(data: any): Promise<number> {
-    const fornecedores = await this.sankhyaService.getFornecedores({
-      EMAIL: data.email,
-    });
+    try {
+      const fornecedores = await this.sankhyaService.getFornecedores({
+        EMAIL: data.email,
+      });
 
-    if (fornecedores.length > 0) {
-      return fornecedores[0].id;
+      if (fornecedores.length > 0) {
+        return fornecedores[0].id;
+      }
+    } catch (error) {
+      this.logger.warn(`Erro ao buscar fornecedor: ${data.email}`, error);
     }
 
     const novoCliente: CreateFornecedorDto = {
@@ -215,9 +235,14 @@ export class WebhookService {
       tipo: this.detectTipoPessoa(data.custom_fields?.cf_cpf_cnpj),
     };
 
-    await this.sankhyaService.createFornecedor(novoCliente);
+    try {
+      const clienteId = await this.sankhyaService.createFornecedor(novoCliente);
+      return clienteId;
+    } catch (error) {
+      this.logger.error("Erro ao criar cliente", error);
 
-    return 1;
+      return 1;
+    }
   }
 
   private detectTipoPessoa(cpfCnpj: string): string {

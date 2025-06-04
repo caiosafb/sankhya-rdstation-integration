@@ -1,22 +1,16 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { HttpModule } from "@nestjs/axios";
-import { BullModule } from "@nestjs/bull";
 import { RdStationService } from "./rd-station.service";
 import { RdStationController } from "./rd-station.controller";
-import { RdStationProcessor } from './rd-station.processor';
 import { WebhookModule } from '../webhook/webhook.module';
-
 
 @Module({
   imports: [
     HttpModule,
-    BullModule.registerQueue({
-      name: "rd-station-queue",
-    }),
-    WebhookModule,
+    forwardRef(() => WebhookModule),
   ],
   controllers: [RdStationController],
-  providers: [RdStationService, RdStationProcessor],
+  providers: [RdStationService],
   exports: [RdStationService],
 })
 export class RdStationModule {}
