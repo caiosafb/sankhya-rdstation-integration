@@ -19,8 +19,8 @@ export class WebhookService {
 
   async processWebhook(payload: any): Promise<void> {
     const syncLog = new SyncLog();
-    syncLog.entityType = `webhook_${payload.event_type || payload.event_name}`;
-    syncLog.entityId = payload.event_uuid || payload.transaction_uuid;
+    syncLog.entityType = `webhook_${payload.event_type}`;
+    syncLog.entityId = payload.event_uuid;
     syncLog.source = "rdstation_webhook";
     syncLog.destination = "sankhya";
     syncLog.data = payload;
@@ -34,29 +34,9 @@ export class WebhookService {
         case "WEBHOOK.MARKED_OPPORTUNITY":
           await this.handleMarkedOpportunityEvent(payload);
           break;
-      }
-
-      switch (payload.event_name) {
-        case "crm_deal_created":
-        case "crm_deal_updated":
-          await this.handleDealEvent(payload);
-          break;
-
-        case "crm_deal_deleted":
-          this.logger.log(`Deal deleted: ${payload.document?.id}`);
-          break;
-
-        case "crm_organization_created":
-        case "crm_organization_updated":
-          await this.handleOrganizationEvent(payload);
-          break;
 
         default:
-          if (!payload.event_type && !payload.event_name) {
-            this.logger.warn(
-              `Unknown webhook format: ${JSON.stringify(payload)}`
-            );
-          }
+          this.logger.warn(`Tipo de evento não tratado: ${payload.event_type}`);
       }
 
       syncLog.status = "success";
@@ -64,7 +44,7 @@ export class WebhookService {
       syncLog.status = "error";
       syncLog.error = error.message;
       this.logger.error(
-        `Failed to process webhook ${payload.event_uuid}`,
+        `Falha ao processar webhook ${payload.event_uuid}`,
         error
       );
       throw error;
@@ -77,9 +57,13 @@ export class WebhookService {
     const lead = payload.leads?.[0] || payload;
 
     if (!lead || !lead.email) {
-      this.logger.warn("Conversion webhook missing lead data");
+      this.logger.warn("Webhook de conversão sem dados do lead");
       return;
     }
+
+    this.logger.log(
+      `Processando conversão: ${lead.email} - ${lead.conversion_identifier || "sem identificador"}`
+    );
 
     const isFornecedor =
       lead.tags?.includes("fornecedor") ||
@@ -89,20 +73,21 @@ export class WebhookService {
       const fornecedorData: CreateFornecedorDto = {
         nome: lead.name || lead.email,
         email: lead.email,
-        telefone: lead.personal_phone || lead.mobile_phone,
+        telefone: lead.personal_phone || lead.mobile_phone || "",
         cpfCnpj: lead.custom_fields?.cf_cpf_cnpj || "",
         tipo: this.detectTipoPessoa(lead.custom_fields?.cf_cpf_cnpj),
       };
 
       await this.sankhyaService.createFornecedor(fornecedorData);
       this.logger.log(
-        `Created fornecedor in Sankhya from conversion: ${lead.email}`
+        `Fornecedor criado no Sankhya a partir da conversão: ${lead.email}`
       );
     }
 
     if (
       lead.conversion_identifier === "purchase" ||
-      lead.conversion_identifier === "sale"
+      lead.conversion_identifier === "sale" ||
+      lead.conversion_identifier === "venda"
     ) {
       await this.createOrderFromConversion(lead);
     }
@@ -112,71 +97,23 @@ export class WebhookService {
     const lead = payload.leads?.[0] || payload;
 
     if (!lead || !lead.email) {
-      this.logger.warn("Marked opportunity webhook missing lead data");
+      this.logger.warn("Webhook de oportunidade sem dados do lead");
       return;
     }
 
-    this.logger.log(`Lead marked as opportunity: ${lead.email}`);
+    this.logger.log(`Lead marcado como oportunidade: ${lead.email}`);
 
-    await this.rdStationService.addTagsToContact(lead.email, [
-      "oportunidade",
-      "sankhya_sync",
-    ]);
-  }
+    try {
+      await this.rdStationService.addTagsToContact(lead.email, [
+        "oportunidade",
+        "sankhya_sync",
+      ]);
 
-  private async handleDealEvent(payload: any): Promise<void> {
-    const deal = payload.document;
-
-    if (!deal) {
-      this.logger.warn("Deal webhook missing document data");
-      return;
-    }
-
-    this.logger.log(`Processing deal ${payload.event_name}: ${deal.id}`);
-
-    if (deal.deal_stage_id && deal.win === true) {
-      const clienteId = await this.findOrCreateClienteFromDeal(deal);
-
-      await this.sankhyaService.createPedido({
-        clienteId: clienteId,
-        empresaId: 1,
-        vendedorId: deal.user_id ? 1 : 1,
-        produtos: [
-          {
-            produtoId: 1,
-            quantidade: 1,
-            precoUnitario: deal.amount || 0,
-          },
-        ],
-      });
-
-      this.logger.log(`Created order in Sankhya from won deal: ${deal.id}`);
-    }
-  }
-
-  private async handleOrganizationEvent(payload: any): Promise<void> {
-    const organization = payload.document;
-
-    if (!organization) {
-      this.logger.warn("Organization webhook missing document data");
-      return;
-    }
-
-    this.logger.log(
-      `Processing organization ${payload.event_name}: ${organization.id}`
-    );
-
-    if (organization.name) {
-      const fornecedorData: CreateFornecedorDto = {
-        nome: organization.name,
-        email: organization.email || `${organization.id}@rdstation.com`,
-        telefone: organization.phone || "",
-        cpfCnpj: organization.cnpj || "",
-        tipo: organization.cnpj ? "J" : "F",
-      };
-
-      await this.sankhyaService.createFornecedor(fornecedorData);
-      this.logger.log(`Synced organization to Sankhya: ${organization.name}`);
+      if (lead.custom_fields?.cf_valor_oportunidade) {
+        await this.createOrderFromOpportunity(lead);
+      }
+    } catch (error) {
+      this.logger.error(`Erro ao processar oportunidade: ${lead.email}`, error);
     }
   }
 
@@ -185,18 +122,24 @@ export class WebhookService {
       const clienteId = await this.findOrCreateCliente(lead);
 
       if (lead.custom_fields?.cf_order_items) {
-        const orderItems = JSON.parse(lead.custom_fields.cf_order_items);
+        try {
+          const orderItems = JSON.parse(lead.custom_fields.cf_order_items);
 
-        await this.sankhyaService.createPedido({
-          clienteId: clienteId,
-          empresaId: lead.custom_fields?.cf_empresa_id || 1,
-          vendedorId: lead.custom_fields?.cf_vendedor_id || 1,
-          produtos: orderItems.map((item: any) => ({
-            produtoId: item.product_id,
-            quantidade: item.quantity,
-            precoUnitario: item.price,
-          })),
-        });
+          await this.sankhyaService.createPedido({
+            clienteId: clienteId,
+            empresaId: lead.custom_fields?.cf_empresa_id || 1,
+            vendedorId: lead.custom_fields?.cf_vendedor_id || 1,
+            produtos: orderItems.map((item: any) => ({
+              produtoId: item.product_id,
+              quantidade: item.quantity,
+              precoUnitario: item.price,
+            })),
+          });
+
+          this.logger.log(`Pedido criado a partir da conversão: ${lead.email}`);
+        } catch (parseError) {
+          this.logger.error("Erro ao parsear itens do pedido", parseError);
+        }
       } else if (lead.custom_fields?.cf_order_total_value) {
         await this.sankhyaService.createPedido({
           clienteId: clienteId,
@@ -212,11 +155,46 @@ export class WebhookService {
             },
           ],
         });
-      }
 
-      this.logger.log(`Created order from conversion: ${lead.email}`);
+        this.logger.log(
+          `Pedido genérico criado a partir da conversão: ${lead.email}`
+        );
+      }
     } catch (error) {
-      this.logger.error("Failed to create order from conversion", error);
+      this.logger.error("Falha ao criar pedido a partir da conversão", error);
+    }
+  }
+
+  private async createOrderFromOpportunity(lead: any): Promise<void> {
+    try {
+      const clienteId = await this.findOrCreateCliente(lead);
+      const valorOportunidade = parseFloat(
+        lead.custom_fields.cf_valor_oportunidade
+      );
+
+      if (valorOportunidade > 0) {
+        await this.sankhyaService.createPedido({
+          clienteId: clienteId,
+          empresaId: 1,
+          vendedorId: 1,
+          produtos: [
+            {
+              produtoId: 1,
+              quantidade: 1,
+              precoUnitario: valorOportunidade,
+            },
+          ],
+        });
+
+        this.logger.log(
+          `Pedido criado a partir da oportunidade: ${lead.email} - Valor: ${valorOportunidade}`
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        "Falha ao criar pedido a partir da oportunidade",
+        error
+      );
     }
   }
 
@@ -232,27 +210,12 @@ export class WebhookService {
     const novoCliente: CreateFornecedorDto = {
       nome: data.name || data.email,
       email: data.email,
-      telefone: data.phone || data.mobile_phone,
+      telefone: data.phone || data.mobile_phone || "",
       cpfCnpj: data.custom_fields?.cf_cpf_cnpj || "",
       tipo: this.detectTipoPessoa(data.custom_fields?.cf_cpf_cnpj),
     };
 
     await this.sankhyaService.createFornecedor(novoCliente);
-
-    return 1;
-  }
-
-  private async findOrCreateClienteFromDeal(deal: any): Promise<number> {
-    if (deal.contact_emails && deal.contact_emails.length > 0) {
-      return this.findOrCreateCliente({
-        email: deal.contact_emails[0],
-        name: deal.name,
-      });
-    }
-
-    if (deal.organization_id) {
-      return 1;
-    }
 
     return 1;
   }

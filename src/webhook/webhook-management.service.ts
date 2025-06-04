@@ -1,125 +1,76 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, Logger } from "@nestjs/common";
+import { HttpService } from "@nestjs/axios";
+import { ConfigService } from "@nestjs/config";
+import { firstValueFrom } from "rxjs";
 
 @Injectable()
 export class WebhookManagementService {
   private readonly logger = new Logger(WebhookManagementService.name);
-  private readonly baseUrl = 'https://api.rd.services';
+  private readonly baseUrl = "https://api.rd.services";
   private accessToken: string;
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {
-    this.accessToken = this.configService.get<string>('RD_STATION_ACCESS_TOKEN');
+    this.accessToken = this.configService.get<string>(
+      "RD_STATION_ACCESS_TOKEN"
+    );
   }
 
   async createMarketingWebhooks(): Promise<void> {
-    const webhookUrl = `${this.configService.get<string>('RD_STATION_CALLBACK_URL')}/rdstation/webhook`;
-    
+    const webhookUrl = `${this.configService.get<string>("RD_STATION_CALLBACK_URL")}/rdstation/webhook`;
+
     try {
       const conversionWebhook = await firstValueFrom(
         this.httpService.post(
           `${this.baseUrl}/integrations/webhooks`,
           {
-            webhook: {
-              url: webhookUrl,
-              event_type: 'WEBHOOK.CONVERTED',
-              webhook_type: 'lead',
-              include_relations: ['tags', 'custom_fields']
-            }
+            entity_type: "LEADS",
+            event_type: "WEBHOOK.CONVERTED",
+            url: webhookUrl,
+            http_method: "POST",
+            include_relations: ["TAGS", "FIELDS"],
           },
           {
             headers: {
-              'Authorization': `Bearer ${this.accessToken}`,
-              'Content-Type': 'application/json'
-            }
+              Authorization: `Bearer ${this.accessToken}`,
+              "Content-Type": "application/json",
+            },
           }
         )
       );
 
-      this.logger.log('Webhook de conversão criado:', conversionWebhook.data);
+      this.logger.log("Webhook de conversão criado:", conversionWebhook.data);
 
       const opportunityWebhook = await firstValueFrom(
         this.httpService.post(
           `${this.baseUrl}/integrations/webhooks`,
           {
-            webhook: {
-              url: webhookUrl,
-              event_type: 'WEBHOOK.MARKED_OPPORTUNITY',
-              webhook_type: 'lead',
-              include_relations: ['tags', 'custom_fields']
-            }
+            entity_type: "LEADS",
+            event_type: "WEBHOOK.MARKED_OPPORTUNITY",
+            url: webhookUrl,
+            http_method: "POST",
+            include_relations: ["TAGS", "FIELDS"],
           },
           {
             headers: {
-              'Authorization': `Bearer ${this.accessToken}`,
-              'Content-Type': 'application/json'
-            }
+              Authorization: `Bearer ${this.accessToken}`,
+              "Content-Type": "application/json",
+            },
           }
         )
       );
 
-      this.logger.log('Webhook de oportunidade criado:', opportunityWebhook.data);
-
+      this.logger.log(
+        "Webhook de oportunidade criado:",
+        opportunityWebhook.data
+      );
     } catch (error) {
-      this.logger.error('Erro ao criar webhooks do Marketing:', error.response?.data || error);
-      throw error;
-    }
-  }
-
-  async createCRMWebhooks(): Promise<void> {
-    const webhookUrl = `${this.configService.get<string>('RD_STATION_CALLBACK_URL')}/rdstation/webhook`;
-    
-    try {
-      const dealWebhook = await firstValueFrom(
-        this.httpService.post(
-          `${this.baseUrl}/integrations/webhooks`,
-          {
-            webhook: {
-              entity_type: 'deals',
-              event_types: ['deal.created', 'deal.updated', 'deal.won', 'deal.lost'],
-              url: webhookUrl,
-              http_method: 'POST'
-            }
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${this.accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        )
+      this.logger.error(
+        "Erro ao criar webhooks:",
+        error.response?.data || error
       );
-
-      this.logger.log('Webhook de deals criado:', dealWebhook.data);
-
-      const orgWebhook = await firstValueFrom(
-        this.httpService.post(
-          `${this.baseUrl}/integrations/webhooks`,
-          {
-            webhook: {
-              entity_type: 'organizations',
-              event_types: ['organization.created', 'organization.updated'],
-              url: webhookUrl,
-              http_method: 'POST'
-            }
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${this.accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        )
-      );
-
-      this.logger.log('Webhook de organizations criado:', orgWebhook.data);
-
-    } catch (error) {
-      this.logger.error('Erro ao criar webhooks do CRM:', error.response?.data || error);
       throw error;
     }
   }
@@ -127,20 +78,19 @@ export class WebhookManagementService {
   async listWebhooks(): Promise<any[]> {
     try {
       const response = await firstValueFrom(
-        this.httpService.get(
-          `${this.baseUrl}/integrations/webhooks`,
-          {
-            headers: {
-              'Authorization': `Bearer ${this.accessToken}`
-            }
-          }
-        )
+        this.httpService.get(`${this.baseUrl}/integrations/webhooks`, {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        })
       );
 
       return response.data.webhooks || [];
-
     } catch (error) {
-      this.logger.error('Erro ao listar webhooks:', error.response?.data || error);
+      this.logger.error(
+        "Erro ao listar webhooks:",
+        error.response?.data || error
+      );
       throw error;
     }
   }
@@ -152,54 +102,50 @@ export class WebhookManagementService {
           `${this.baseUrl}/integrations/webhooks/${webhookId}`,
           {
             headers: {
-              'Authorization': `Bearer ${this.accessToken}`
-            }
+              Authorization: `Bearer ${this.accessToken}`,
+            },
           }
         )
       );
 
       this.logger.log(`Webhook ${webhookId} deletado com sucesso`);
-
     } catch (error) {
-      this.logger.error('Erro ao deletar webhook:', error.response?.data || error);
+      this.logger.error(
+        "Erro ao deletar webhook:",
+        error.response?.data || error
+      );
       throw error;
     }
   }
 
   async setupAllWebhooks(): Promise<void> {
-    this.logger.log('Configurando todos os webhooks...');
-    
+    this.logger.log("Configurando webhooks do RD Station Marketing...");
+
     try {
       const existingWebhooks = await this.listWebhooks();
-      
-      const hasConversionWebhook = existingWebhooks.some(w => 
-        w.event_type === 'WEBHOOK.CONVERTED'
+
+      const webhookUrl = `${this.configService.get<string>("RD_STATION_CALLBACK_URL")}/rdstation/webhook`;
+
+      const hasConversionWebhook = existingWebhooks.some(
+        (w) => w.event_type === "WEBHOOK.CONVERTED" && w.url === webhookUrl
       );
-      
-      const hasOpportunityWebhook = existingWebhooks.some(w => 
-        w.event_type === 'WEBHOOK.MARKED_OPPORTUNITY'
+
+      const hasOpportunityWebhook = existingWebhooks.some(
+        (w) =>
+          w.event_type === "WEBHOOK.MARKED_OPPORTUNITY" && w.url === webhookUrl
       );
 
       if (!hasConversionWebhook || !hasOpportunityWebhook) {
         await this.createMarketingWebhooks();
+        this.logger.log("Webhooks criados com sucesso!");
       } else {
-        this.logger.log('Webhooks do Marketing já existem');
+        this.logger.log("Webhooks já existem para esta URL");
       }
 
-      const hasDealWebhook = existingWebhooks.some(w => 
-        w.entity_type === 'deals'
-      );
-
-      if (!hasDealWebhook) {
-        await this.createCRMWebhooks();
-      } else {
-        this.logger.log('Webhooks do CRM já existem');
-      }
-
-      this.logger.log('Todos os webhooks configurados com sucesso!');
-
+      const allWebhooks = await this.listWebhooks();
+      this.logger.log(`Total de webhooks configurados: ${allWebhooks.length}`);
     } catch (error) {
-      this.logger.error('Erro ao configurar webhooks:', error);
+      this.logger.error("Erro ao configurar webhooks:", error);
       throw error;
     }
   }
