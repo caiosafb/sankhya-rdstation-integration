@@ -52,18 +52,50 @@ export class WebhookManagementController {
           name: "Empresa Teste LTDA",
           personal_phone: "11999999999",
           tags: ["fornecedor", "teste"],
+          conversion_identifier: "teste-manual",
           custom_fields: {
             cf_tipo: "fornecedor",
             cf_cpf_cnpj: "12.345.678/0001-90",
+            cf_order_total_value: "1500.00",
           },
         },
       ],
     };
 
-    const webhookUrl = `http://localhost:${process.env.PORT || 3000}/api/rdstation/webhook`;
+    const webhookUrl = `http://localhost:${process.env.PORT || 3000}/rdstation/webhook`;
 
     return {
       message: "Payload de teste enviado",
+      url: webhookUrl,
+      payload: testPayload,
+    };
+  }
+
+  @Post("test-opportunity")
+  async sendTestOpportunity() {
+    const testPayload = {
+      event_type: "WEBHOOK.MARKED_OPPORTUNITY",
+      event_uuid: "test-opp-" + Date.now(),
+      event_timestamp: new Date().toISOString(),
+      leads: [
+        {
+          uuid: "lead-test-456",
+          email: "oportunidade@empresa.com.br",
+          name: "Cliente Potencial SA",
+          personal_phone: "11888888888",
+          tags: ["cliente", "potencial"],
+          custom_fields: {
+            cf_valor_oportunidade: "5000.00",
+            cf_tipo: "cliente",
+          },
+        },
+      ],
+    };
+
+    const webhookUrl = `http://localhost:${process.env.PORT || 3000}/rdstation/webhook`;
+
+    return {
+      message: "Payload de oportunidade enviado",
       url: webhookUrl,
       payload: testPayload,
     };
