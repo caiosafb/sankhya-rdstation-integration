@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "webhook:create": "ts-node src/scripts/create-webhook.ts create",
     "webhook:list": "ts-node src/scripts/create-webhook.ts list",
-    "webhook:delete": "ts-node src/scripts/create-webhook.ts delete"
+    "webhook:delete": "ts-node src/scripts/create-webhook.ts delete",
+    "webhook:test": "ts-node src/scripts/create-webhook.ts test"
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.0",
