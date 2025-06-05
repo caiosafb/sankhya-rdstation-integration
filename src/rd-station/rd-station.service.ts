@@ -1,8 +1,6 @@
 import { Injectable, Logger, HttpException } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
-import { InjectQueue } from "@nestjs/bull";
-import { Queue } from "bull";
 import { firstValueFrom } from "rxjs";
 import {
   ContactDto,
@@ -27,8 +25,7 @@ export class RdStationService {
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly configService: ConfigService,
-    @InjectQueue("rd-station-queue") private rdQueue: Queue
+    private readonly configService: ConfigService
   ) {
     this.accessToken = this.configService.get<string>(
       "RD_STATION_ACCESS_TOKEN"
@@ -272,15 +269,6 @@ export class RdStationService {
       return this.updateContactTags(email, newTags);
     } catch (error) {
       this.logger.error(`Failed to add tags to contact: ${email}`, error);
-      throw error;
-    }
-  }
-
-  async processContactQueue(contact: CreateContactDto): Promise<any> {
-    try {
-      return await this.createOrUpdateContact(contact.email, contact);
-    } catch (error) {
-      this.logger.error("Failed to process contact from queue", error);
       throw error;
     }
   }

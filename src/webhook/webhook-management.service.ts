@@ -41,7 +41,7 @@ export class WebhookManagementService {
         )
       );
 
-      this.logger.log("Webhook de conversão criado:", conversionWebhook.data);
+      this.logger.log("Conversion webhook created:", conversionWebhook.data);
 
       const opportunityWebhook = await firstValueFrom(
         this.httpService.post(
@@ -62,13 +62,10 @@ export class WebhookManagementService {
         )
       );
 
-      this.logger.log(
-        "Webhook de oportunidade criado:",
-        opportunityWebhook.data
-      );
+      this.logger.log("Opportunity webhook created:", opportunityWebhook.data);
     } catch (error) {
       this.logger.error(
-        "Erro ao criar webhooks:",
+        "Error creating webhooks:",
         error.response?.data || error
       );
       throw error;
@@ -88,7 +85,7 @@ export class WebhookManagementService {
       return response.data.webhooks || [];
     } catch (error) {
       this.logger.error(
-        "Erro ao listar webhooks:",
+        "Error listing webhooks:",
         error.response?.data || error
       );
       throw error;
@@ -108,10 +105,10 @@ export class WebhookManagementService {
         )
       );
 
-      this.logger.log(`Webhook ${webhookId} deletado com sucesso`);
+      this.logger.log(`Webhook ${webhookId} deleted successfully`);
     } catch (error) {
       this.logger.error(
-        "Erro ao deletar webhook:",
+        "Error deleting webhook:",
         error.response?.data || error
       );
       throw error;
@@ -119,11 +116,10 @@ export class WebhookManagementService {
   }
 
   async setupAllWebhooks(): Promise<void> {
-    this.logger.log("Configurando webhooks do RD Station Marketing...");
+    this.logger.log("Setting up RD Station Marketing webhooks...");
 
     try {
       const existingWebhooks = await this.listWebhooks();
-
       const webhookUrl = `${this.configService.get<string>("RD_STATION_CALLBACK_URL")}/rdstation/webhook`;
 
       const hasConversionWebhook = existingWebhooks.some(
@@ -137,15 +133,15 @@ export class WebhookManagementService {
 
       if (!hasConversionWebhook || !hasOpportunityWebhook) {
         await this.createMarketingWebhooks();
-        this.logger.log("Webhooks criados com sucesso!");
+        this.logger.log("Webhooks created successfully!");
       } else {
-        this.logger.log("Webhooks já existem para esta URL");
+        this.logger.log("Webhooks already exist for this URL");
       }
 
       const allWebhooks = await this.listWebhooks();
-      this.logger.log(`Total de webhooks configurados: ${allWebhooks.length}`);
+      this.logger.log(`Total configured webhooks: ${allWebhooks.length}`);
     } catch (error) {
-      this.logger.error("Erro ao configurar webhooks:", error);
+      this.logger.error("Error setting up webhooks:", error);
       throw error;
     }
   }

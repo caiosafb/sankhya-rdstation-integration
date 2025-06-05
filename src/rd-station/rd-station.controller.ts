@@ -126,9 +126,9 @@ export class RdStationController {
         {
           email: "test@example.com",
           name: "Test Lead",
-          tags: ["fornecedor", "test"],
+          tags: ["supplier", "test"],
           custom_fields: {
-            cf_tipo: "fornecedor",
+            cf_tipo: "supplier",
             cf_cpf_cnpj: "12345678901",
           },
         },

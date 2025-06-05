@@ -25,7 +25,7 @@ async function createWebhook() {
       }
     );
 
-    console.log("Webhook de conversão criado:", conversionWebhook.data);
+    console.log("Conversion webhook created:", conversionWebhook.data);
 
     const opportunityWebhook = await axios.post(
       "https://api.rd.services/integrations/webhooks",
@@ -44,10 +44,10 @@ async function createWebhook() {
       }
     );
 
-    console.log("Webhook de oportunidade criado:", opportunityWebhook.data);
+    console.log("Opportunity webhook created:", opportunityWebhook.data);
   } catch (error) {
     console.error(
-      "Erro ao criar webhook:",
+      "Error creating webhook:",
       error.response?.data || error.message
     );
   }
@@ -66,7 +66,7 @@ async function listWebhooks() {
       }
     );
 
-    console.log("📋 Webhooks existentes:");
+    console.log("Existing webhooks:");
     console.log("Total:", response.data.webhooks.length);
 
     response.data.webhooks.forEach((webhook: any, index: number) => {
@@ -74,11 +74,11 @@ async function listWebhooks() {
       console.log(`   URL: ${webhook.url}`);
       console.log(`   ID: ${webhook.uuid}`);
       console.log(`   Status: ${webhook.status || "active"}`);
-      console.log(`   Criado em: ${webhook.created_at}`);
+      console.log(`   Created at: ${webhook.created_at}`);
     });
   } catch (error) {
     console.error(
-      "Erro ao listar webhooks:",
+      "Error listing webhooks:",
       error.response?.data || error.message
     );
   }
@@ -97,10 +97,10 @@ async function deleteWebhook(webhookId: string) {
       }
     );
 
-    console.log(`Webhook ${webhookId} deletado com sucesso`);
+    console.log(`Webhook ${webhookId} deleted successfully`);
   } catch (error) {
     console.error(
-      "Erro ao deletar webhook:",
+      "Error deleting webhook:",
       error.response?.data || error.message
     );
   }
@@ -109,7 +109,7 @@ async function deleteWebhook(webhookId: string) {
 async function testWebhook() {
   const webhookUrl = process.env.RD_STATION_CALLBACK_URL + "/rdstation/webhook";
 
-  console.log(`Enviando payload de teste para: ${webhookUrl}`);
+  console.log(`Sending test payload to: ${webhookUrl}`);
 
   const testPayload = {
     event_type: "WEBHOOK.CONVERTED",
@@ -118,13 +118,13 @@ async function testWebhook() {
     leads: [
       {
         uuid: "lead-test-123",
-        email: "teste@empresa.com.br",
-        name: "Empresa Teste LTDA",
+        email: "test@company.com",
+        name: "Test Company Ltd",
         personal_phone: "11999999999",
-        tags: ["fornecedor", "teste"],
-        conversion_identifier: "teste-manual",
+        tags: ["supplier", "test"],
+        conversion_identifier: "manual-test",
         custom_fields: {
-          cf_tipo: "fornecedor",
+          cf_tipo: "supplier",
           cf_cpf_cnpj: "12.345.678/0001-90",
         },
       },
@@ -138,10 +138,10 @@ async function testWebhook() {
       },
     });
 
-    console.log("Teste enviado com sucesso:", response.data);
+    console.log("Test sent successfully:", response.data);
   } catch (error) {
     console.error(
-      "Erro ao testar webhook:",
+      "Error testing webhook:",
       error.response?.data || error.message
     );
   }
@@ -159,8 +159,8 @@ switch (command) {
   case "delete":
     const webhookId = process.argv[3];
     if (!webhookId) {
-      console.error("Forneça o ID do webhook para deletar");
-      console.log("Uso: npm run webhook:delete <webhook-id>");
+      console.error("Please provide webhook ID to delete");
+      console.log("Usage: npm run webhook:delete <webhook-id>");
     } else {
       deleteWebhook(webhookId);
     }
@@ -169,9 +169,9 @@ switch (command) {
     testWebhook();
     break;
   default:
-    console.log("Comandos disponíveis:");
-    console.log("  npm run webhook:create - Criar webhooks");
-    console.log("  npm run webhook:list   - Listar webhooks");
-    console.log("  npm run webhook:delete <id> - Deletar webhook");
-    console.log("  npm run webhook:test   - Testar webhook localmente");
+    console.log("Available commands:");
+    console.log("  npm run webhook:create - Create webhooks");
+    console.log("  npm run webhook:list   - List webhooks");
+    console.log("  npm run webhook:delete <id> - Delete webhook");
+    console.log("  npm run webhook:test   - Test webhook locally");
 }

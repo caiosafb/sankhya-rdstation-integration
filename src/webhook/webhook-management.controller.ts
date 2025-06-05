@@ -11,7 +11,7 @@ export class WebhookManagementController {
   async setupWebhooks() {
     await this.webhookManagementService.setupAllWebhooks();
     return {
-      message: "Webhooks configurados com sucesso",
+      message: "Webhooks configured successfully",
       timestamp: new Date(),
     };
   }
@@ -35,7 +35,7 @@ export class WebhookManagementController {
   async deleteWebhook(@Param("id") id: string) {
     await this.webhookManagementService.deleteWebhook(id);
     return {
-      message: `Webhook ${id} deletado com sucesso`,
+      message: `Webhook ${id} deleted successfully`,
     };
   }
 
@@ -48,13 +48,13 @@ export class WebhookManagementController {
       leads: [
         {
           uuid: "lead-test-123",
-          email: "teste@empresa.com.br",
-          name: "Empresa Teste LTDA",
+          email: "test@company.com",
+          name: "Test Company Ltd",
           personal_phone: "11999999999",
-          tags: ["fornecedor", "teste"],
-          conversion_identifier: "teste-manual",
+          tags: ["supplier", "test"],
+          conversion_identifier: "manual-test",
           custom_fields: {
-            cf_tipo: "fornecedor",
+            cf_tipo: "supplier",
             cf_cpf_cnpj: "12.345.678/0001-90",
             cf_order_total_value: "1500.00",
           },
@@ -65,7 +65,7 @@ export class WebhookManagementController {
     const webhookUrl = `http://localhost:${process.env.PORT || 3000}/rdstation/webhook`;
 
     return {
-      message: "Payload de teste enviado",
+      message: "Test payload sent",
       url: webhookUrl,
       payload: testPayload,
     };
@@ -80,13 +80,13 @@ export class WebhookManagementController {
       leads: [
         {
           uuid: "lead-test-456",
-          email: "oportunidade@empresa.com.br",
-          name: "Cliente Potencial SA",
+          email: "opportunity@company.com",
+          name: "Potential Customer Inc",
           personal_phone: "11888888888",
-          tags: ["cliente", "potencial"],
+          tags: ["customer", "potential"],
           custom_fields: {
             cf_valor_oportunidade: "5000.00",
-            cf_tipo: "cliente",
+            cf_tipo: "customer",
           },
         },
       ],
@@ -95,7 +95,7 @@ export class WebhookManagementController {
     const webhookUrl = `http://localhost:${process.env.PORT || 3000}/rdstation/webhook`;
 
     return {
-      message: "Payload de oportunidade enviado",
+      message: "Opportunity payload sent",
       url: webhookUrl,
       payload: testPayload,
     };
