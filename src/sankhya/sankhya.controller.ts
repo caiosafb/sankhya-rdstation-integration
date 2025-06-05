@@ -1,43 +1,51 @@
 import { Controller, Get, Post, Body, Query } from "@nestjs/common";
 import { SankhyaService } from "./sankhya.service";
-import { CreateFornecedorDto, CreatePedidoDto } from "./dto";
+import { CreateSupplierDto, CreateOrderDto } from "./dto";
 
 @Controller("sankhya")
 export class SankhyaController {
   constructor(private readonly sankhyaService: SankhyaService) {}
 
-  @Get("fornecedores")
-  async getFornecedores(@Query() filters: any) {
-    return this.sankhyaService.getFornecedores(filters);
+  @Get("suppliers")
+  async getSuppliers(@Query() filters: any) {
+    return this.sankhyaService.getSuppliers(filters);
   }
 
-  @Post("fornecedores")
-  async createFornecedor(@Body() fornecedor: CreateFornecedorDto) {
-    return this.sankhyaService.createFornecedor(fornecedor);
+  @Post("suppliers")
+  async createSupplier(@Body() supplier: CreateSupplierDto) {
+    const supplierId = await this.sankhyaService.createSupplier(supplier);
+    return {
+      message: "Supplier created successfully",
+      id: supplierId,
+    };
   }
 
-  @Get("empresas")
-  async getEmpresas(@Query() filters: any) {
-    return this.sankhyaService.getEmpresas(filters);
+  @Get("companies")
+  async getCompanies(@Query() filters: any) {
+    return this.sankhyaService.getCompanies(filters);
   }
 
-  @Get("produtos")
-  async getProdutos(@Query() filters: any) {
-    return this.sankhyaService.getProdutos(filters);
+  @Get("products")
+  async getProducts(@Query() filters: any) {
+    return this.sankhyaService.getProducts(filters);
   }
 
-  @Get("pedidos")
-  async getPedidos(@Query() filters: any) {
-    return this.sankhyaService.getPedidos(filters);
+  @Get("orders")
+  async getOrders(@Query() filters: any) {
+    return this.sankhyaService.getOrders(filters);
   }
 
-  @Post("pedidos")
-  async createPedido(@Body() pedido: CreatePedidoDto) {
-    return this.sankhyaService.createPedido(pedido);
+  @Post("orders")
+  async createOrder(@Body() order: CreateOrderDto) {
+    const orderId = await this.sankhyaService.createOrder(order);
+    return {
+      message: "Order created successfully",
+      id: orderId,
+    };
   }
 
-  @Get("vendedores")
-  async getVendedores(@Query() filters: any) {
-    return this.sankhyaService.getVendedores(filters);
+  @Get("sellers")
+  async getSellers(@Query() filters: any) {
+    return this.sankhyaService.getSellers(filters);
   }
 }
