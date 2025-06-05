@@ -3,13 +3,13 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
 import {
-  FornecedorDto,
-  EmpresaDto,
-  ProdutoDto,
-  PedidoDto,
-  VendedorDto,
-  CreateFornecedorDto,
-  CreatePedidoDto,
+  SupplierDto,
+  CompanyDto,
+  ProductDto,
+  OrderDto,
+  SellerDto,
+  CreateSupplierDto,
+  CreateOrderDto,
 } from "./dto";
 
 @Injectable()
@@ -62,7 +62,7 @@ export class SankhyaService {
     }
   }
 
-  async getFornecedores(filters?: any): Promise<FornecedorDto[]> {
+  async getSuppliers(filters?: any): Promise<SupplierDto[]> {
     await this.ensureAuthenticated();
 
     const response = await firstValueFrom(
@@ -87,10 +87,10 @@ export class SankhyaService {
       )
     );
 
-    return response.data.responseBody.entities.map(this.mapToFornecedorDto);
+    return response.data.responseBody.entities.map(this.mapToSupplierDto);
   }
 
-  async createFornecedor(fornecedor: CreateFornecedorDto): Promise<number> {
+  async createSupplier(supplier: CreateSupplierDto): Promise<number> {
     await this.ensureAuthenticated();
 
     try {
@@ -104,11 +104,11 @@ export class SankhyaService {
                 rootEntity: "Parceiro",
                 dataRow: {
                   localFields: {
-                    NOMEPARC: fornecedor.nome,
-                    EMAIL: fornecedor.email,
-                    TELEFONE: fornecedor.telefone || "",
-                    CGC_CPF: fornecedor.cpfCnpj,
-                    TIPPESSOA: fornecedor.tipo,
+                    NOMEPARC: supplier.name,
+                    EMAIL: supplier.email,
+                    TELEFONE: supplier.phone || "",
+                    CGC_CPF: supplier.taxId,
+                    TIPPESSOA: supplier.type,
                     FORNECEDOR: "S",
                     CLIENTE: "S",
                     ATIVO: "S",
@@ -121,20 +121,20 @@ export class SankhyaService {
         )
       );
 
-      const codParc = response.data.responseBody.primaryKey?.CODPARC;
-      this.logger.log(`Fornecedor criado com sucesso. ID: ${codParc}`);
+      const partnerId = response.data.responseBody.primaryKey?.CODPARC;
+      this.logger.log(`Supplier created successfully. ID: ${partnerId}`);
 
-      return codParc;
+      return partnerId;
     } catch (error) {
       this.logger.error(
-        `Falha ao criar fornecedor: ${fornecedor.email}`,
+        `Failed to create supplier: ${supplier.email}`,
         error.response?.data || error
       );
       throw error;
     }
   }
 
-  async getEmpresas(filters?: any): Promise<EmpresaDto[]> {
+  async getCompanies(filters?: any): Promise<CompanyDto[]> {
     await this.ensureAuthenticated();
 
     const response = await firstValueFrom(
@@ -154,10 +154,10 @@ export class SankhyaService {
       )
     );
 
-    return response.data.responseBody.entities.map(this.mapToEmpresaDto);
+    return response.data.responseBody.entities.map(this.mapToCompanyDto);
   }
 
-  async getProdutos(filters?: any): Promise<ProdutoDto[]> {
+  async getProducts(filters?: any): Promise<ProductDto[]> {
     await this.ensureAuthenticated();
 
     const response = await firstValueFrom(
@@ -177,10 +177,10 @@ export class SankhyaService {
       )
     );
 
-    return response.data.responseBody.entities.map(this.mapToProdutoDto);
+    return response.data.responseBody.entities.map(this.mapToProductDto);
   }
 
-  async getPedidos(filters?: any): Promise<PedidoDto[]> {
+  async getOrders(filters?: any): Promise<OrderDto[]> {
     await this.ensureAuthenticated();
 
     const response = await firstValueFrom(
@@ -205,14 +205,14 @@ export class SankhyaService {
       )
     );
 
-    return response.data.responseBody.entities.map(this.mapToPedidoDto);
+    return response.data.responseBody.entities.map(this.mapToOrderDto);
   }
 
-  async createPedido(pedido: CreatePedidoDto): Promise<number> {
+  async createOrder(order: CreateOrderDto): Promise<number> {
     await this.ensureAuthenticated();
 
     try {
-      const cabecalhoResponse = await firstValueFrom(
+      const headerResponse = await firstValueFrom(
         this.httpService.post(
           `${this.baseUrl}/service.sbr`,
           {
@@ -222,12 +222,12 @@ export class SankhyaService {
                 rootEntity: "CabecalhoNota",
                 dataRow: {
                   localFields: {
-                    CODPARC: pedido.clienteId,
-                    CODEMP: pedido.empresaId,
-                    CODVEND: pedido.vendedorId,
+                    CODPARC: order.customerId,
+                    CODEMP: order.companyId,
+                    CODVEND: order.sellerId,
                     DTNEG: new Date().toISOString(),
-                    TIPMOV: "V", 
-                    STATUSNOTA: "L", 
+                    TIPMOV: "V",
+                    STATUSNOTA: "L",
                   },
                 },
               },
@@ -237,13 +237,13 @@ export class SankhyaService {
         )
       );
 
-      const nunota = cabecalhoResponse.data.responseBody.primaryKey?.NUNOTA;
+      const invoiceId = headerResponse.data.responseBody.primaryKey?.NUNOTA;
 
-      if (!nunota) {
-        throw new Error("Falha ao obter NUNOTA da resposta");
+      if (!invoiceId) {
+        throw new Error("Failed to get NUNOTA from response");
       }
 
-      for (const item of pedido.produtos) {
+      for (const item of order.items) {
         await firstValueFrom(
           this.httpService.post(
             `${this.baseUrl}/service.sbr`,
@@ -254,11 +254,11 @@ export class SankhyaService {
                   rootEntity: "ItemNota",
                   dataRow: {
                     localFields: {
-                      NUNOTA: nunota,
-                      CODPROD: item.produtoId,
-                      QTDNEG: item.quantidade,
-                      VLRUNIT: item.precoUnitario,
-                      VLRTOT: item.quantidade * item.precoUnitario,
+                      NUNOTA: invoiceId,
+                      CODPROD: item.productId,
+                      QTDNEG: item.quantity,
+                      VLRUNIT: item.unitPrice,
+                      VLRTOT: item.quantity * item.unitPrice,
                     },
                   },
                 },
@@ -269,18 +269,18 @@ export class SankhyaService {
         );
       }
 
-      this.logger.log(`Pedido criado com sucesso. NUNOTA: ${nunota}`);
-      return nunota;
+      this.logger.log(`Order created successfully. NUNOTA: ${invoiceId}`);
+      return invoiceId;
     } catch (error) {
       this.logger.error(
-        `Falha ao criar pedido para cliente: ${pedido.clienteId}`,
+        `Failed to create order for customer: ${order.customerId}`,
         error.response?.data || error
       );
       throw error;
     }
   }
 
-  async getVendedores(filters?: any): Promise<VendedorDto[]> {
+  async getSellers(filters?: any): Promise<SellerDto[]> {
     await this.ensureAuthenticated();
 
     const response = await firstValueFrom(
@@ -300,7 +300,7 @@ export class SankhyaService {
       )
     );
 
-    return response.data.responseBody.entities.map(this.mapToVendedorDto);
+    return response.data.responseBody.entities.map(this.mapToSellerDto);
   }
 
   private async ensureAuthenticated(): Promise<void> {
@@ -320,58 +320,58 @@ export class SankhyaService {
     };
   }
 
-  private mapToFornecedorDto(entity: any): FornecedorDto {
+  private mapToSupplierDto(entity: any): SupplierDto {
     return {
       id: entity.CODPARC,
-      nome: entity.NOMEPARC,
+      name: entity.NOMEPARC,
       email: entity.EMAIL,
-      telefone: entity.TELEFONE,
-      cpfCnpj: entity.CGC_CPF,
-      tipo: entity.TIPPESSOA,
-      ativo: entity.ATIVO === "S",
+      phone: entity.TELEFONE,
+      taxId: entity.CGC_CPF,
+      type: entity.TIPPESSOA,
+      active: entity.ATIVO === "S",
     };
   }
 
-  private mapToEmpresaDto(entity: any): EmpresaDto {
+  private mapToCompanyDto(entity: any): CompanyDto {
     return {
       id: entity.CODEMP,
-      nome: entity.NOMEFANTASIA,
-      razaoSocial: entity.RAZAOSOCIAL,
-      cnpj: entity.CGC,
+      name: entity.NOMEFANTASIA,
+      legalName: entity.RAZAOSOCIAL,
+      taxId: entity.CGC,
     };
   }
 
-  private mapToProdutoDto(entity: any): ProdutoDto {
+  private mapToProductDto(entity: any): ProductDto {
     return {
       id: entity.CODPROD,
-      nome: entity.DESCRPROD,
-      codigo: entity.REFERENCIA,
-      preco: entity.VLRVENDA,
-      estoque: entity.ESTOQUE,
-      ativo: entity.ATIVO === "S",
+      name: entity.DESCRPROD,
+      code: entity.REFERENCIA,
+      price: entity.VLRVENDA,
+      stock: entity.ESTOQUE,
+      active: entity.ATIVO === "S",
     };
   }
 
-  private mapToPedidoDto(entity: any): PedidoDto {
+  private mapToOrderDto(entity: any): OrderDto {
     return {
       id: entity.NUNOTA,
-      clienteId: entity.CODPARC,
-      empresaId: entity.CODEMP,
-      vendedorId: entity.CODVEND,
-      data: entity.DTNEG,
-      valorTotal: entity.VLRNOTA,
+      customerId: entity.CODPARC,
+      companyId: entity.CODEMP,
+      sellerId: entity.CODVEND,
+      date: entity.DTNEG,
+      totalValue: entity.VLRNOTA,
       status: entity.STATUSNOTA,
-      tipoMovimento: entity.TIPMOV,
-      numeroNota: entity.NUMNOTA,
+      movementType: entity.TIPMOV,
+      invoiceNumber: entity.NUMNOTA,
     };
   }
 
-  private mapToVendedorDto(entity: any): VendedorDto {
+  private mapToSellerDto(entity: any): SellerDto {
     return {
       id: entity.CODVEND,
-      nome: entity.NOMEVEND,
+      name: entity.NOMEVEND,
       email: entity.EMAIL,
-      ativo: entity.ATIVO === "S",
+      active: entity.ATIVO === "S",
     };
   }
 }

@@ -4,7 +4,7 @@ import { Repository } from "typeorm";
 import { SankhyaService } from "../sankhya/sankhya.service";
 import { RdStationService } from "../rd-station/rd-station.service";
 import { SyncLog } from "../database/entities/sync-log.entity";
-import { CreateFornecedorDto } from "../sankhya/dto";
+import { CreateSupplierDto } from "../sankhya/dto";
 
 @Injectable()
 export class WebhookService {
@@ -36,7 +36,7 @@ export class WebhookService {
           break;
 
         default:
-          this.logger.warn(`Tipo de evento não tratado: ${payload.event_type}`);
+          this.logger.warn(`Unhandled event type: ${payload.event_type}`);
       }
 
       syncLog.status = "success";
@@ -44,7 +44,7 @@ export class WebhookService {
       syncLog.status = "error";
       syncLog.error = error.message;
       this.logger.error(
-        `Falha ao processar webhook ${payload.event_uuid}`,
+        `Failed to process webhook ${payload.event_uuid}`,
         error
       );
       throw error;
@@ -57,31 +57,31 @@ export class WebhookService {
     const lead = payload.leads?.[0] || payload;
 
     if (!lead || !lead.email) {
-      this.logger.warn("Webhook de conversão sem dados do lead");
+      this.logger.warn("Conversion webhook missing lead data");
       return;
     }
 
     this.logger.log(
-      `Processando conversão: ${lead.email} - ${lead.conversion_identifier || "sem identificador"}`
+      `Processing conversion: ${lead.email} - ${lead.conversion_identifier || "no identifier"}`
     );
 
-    const isFornecedor =
-      lead.tags?.includes("fornecedor") ||
-      lead.custom_fields?.cf_tipo === "fornecedor";
+    const isSupplier =
+      lead.tags?.includes("supplier") ||
+      lead.custom_fields?.cf_tipo === "supplier";
 
-    if (isFornecedor && !lead.custom_fields?.cf_sankhya_id) {
+    if (isSupplier && !lead.custom_fields?.cf_sankhya_id) {
       try {
-        const fornecedorData: CreateFornecedorDto = {
-          nome: lead.name || lead.email,
+        const supplierData: CreateSupplierDto = {
+          name: lead.name || lead.email,
           email: lead.email,
-          telefone: lead.personal_phone || lead.mobile_phone || "",
-          cpfCnpj: lead.custom_fields?.cf_cpf_cnpj || "",
-          tipo: this.detectTipoPessoa(lead.custom_fields?.cf_cpf_cnpj),
+          phone: lead.personal_phone || lead.mobile_phone || "",
+          taxId: lead.custom_fields?.cf_cpf_cnpj || "",
+          type: this.detectPersonType(lead.custom_fields?.cf_cpf_cnpj),
         };
 
         const sankhyaId =
-          await this.sankhyaService.createFornecedor(fornecedorData);
-        this.logger.log(`Fornecedor criado no Sankhya. ID: ${sankhyaId}`);
+          await this.sankhyaService.createSupplier(supplierData);
+        this.logger.log(`Supplier created in Sankhya. ID: ${sankhyaId}`);
 
         if (sankhyaId) {
           await this.rdStationService.createOrUpdateContact(lead.email, {
@@ -91,19 +91,18 @@ export class WebhookService {
             },
           });
           this.logger.log(
-            `Contato atualizado no RD Station com Sankhya ID: ${sankhyaId}`
+            `Contact updated in RD Station with Sankhya ID: ${sankhyaId}`
           );
         }
       } catch (error) {
-        this.logger.error(`Erro ao criar fornecedor: ${lead.email}`, error);
+        this.logger.error(`Error creating supplier: ${lead.email}`, error);
         throw error;
       }
     }
 
     if (
       lead.conversion_identifier === "purchase" ||
-      lead.conversion_identifier === "sale" ||
-      lead.conversion_identifier === "venda"
+      lead.conversion_identifier === "sale"
     ) {
       await this.createOrderFromConversion(lead);
     }
@@ -113,15 +112,15 @@ export class WebhookService {
     const lead = payload.leads?.[0] || payload;
 
     if (!lead || !lead.email) {
-      this.logger.warn("Webhook de oportunidade sem dados do lead");
+      this.logger.warn("Opportunity webhook missing lead data");
       return;
     }
 
-    this.logger.log(`Lead marcado como oportunidade: ${lead.email}`);
+    this.logger.log(`Lead marked as opportunity: ${lead.email}`);
 
     try {
       await this.rdStationService.addTagsToContact(lead.email, [
-        "oportunidade",
+        "opportunity",
         "sankhya_sync",
       ]);
 
@@ -129,126 +128,118 @@ export class WebhookService {
         await this.createOrderFromOpportunity(lead);
       }
     } catch (error) {
-      this.logger.error(`Erro ao processar oportunidade: ${lead.email}`, error);
+      this.logger.error(`Error processing opportunity: ${lead.email}`, error);
     }
   }
 
   private async createOrderFromConversion(lead: any): Promise<void> {
     try {
-      const clienteId = await this.findOrCreateCliente(lead);
+      const customerId = await this.findOrCreateCustomer(lead);
 
       if (lead.custom_fields?.cf_order_items) {
         try {
           const orderItems = JSON.parse(lead.custom_fields.cf_order_items);
 
-          const pedidoId = await this.sankhyaService.createPedido({
-            clienteId: clienteId,
-            empresaId: lead.custom_fields?.cf_empresa_id || 1,
-            vendedorId: lead.custom_fields?.cf_vendedor_id || 1,
-            produtos: orderItems.map((item: any) => ({
-              produtoId: item.product_id,
-              quantidade: item.quantity,
-              precoUnitario: item.price,
+          const orderId = await this.sankhyaService.createOrder({
+            customerId: customerId,
+            companyId: lead.custom_fields?.cf_empresa_id || 1,
+            sellerId: lead.custom_fields?.cf_vendedor_id || 1,
+            items: orderItems.map((item: any) => ({
+              productId: item.product_id,
+              quantity: item.quantity,
+              unitPrice: item.price,
             })),
           });
 
-          this.logger.log(`Pedido criado no Sankhya. NUNOTA: ${pedidoId}`);
+          this.logger.log(`Order created in Sankhya. NUNOTA: ${orderId}`);
         } catch (parseError) {
-          this.logger.error("Erro ao parsear itens do pedido", parseError);
+          this.logger.error("Error parsing order items", parseError);
         }
       } else if (lead.custom_fields?.cf_order_total_value) {
-        const pedidoId = await this.sankhyaService.createPedido({
-          clienteId: clienteId,
-          empresaId: 1,
-          vendedorId: 1,
-          produtos: [
+        const orderId = await this.sankhyaService.createOrder({
+          customerId: customerId,
+          companyId: 1,
+          sellerId: 1,
+          items: [
             {
-              produtoId: 1,
-              quantidade: 1,
-              precoUnitario: parseFloat(
-                lead.custom_fields.cf_order_total_value
-              ),
+              productId: 1,
+              quantity: 1,
+              unitPrice: parseFloat(lead.custom_fields.cf_order_total_value),
             },
           ],
         });
 
-        this.logger.log(
-          `Pedido genérico criado no Sankhya. NUNOTA: ${pedidoId}`
-        );
+        this.logger.log(`Generic order created in Sankhya. NUNOTA: ${orderId}`);
       }
     } catch (error) {
-      this.logger.error("Falha ao criar pedido a partir da conversão", error);
+      this.logger.error("Failed to create order from conversion", error);
     }
   }
 
   private async createOrderFromOpportunity(lead: any): Promise<void> {
     try {
-      const clienteId = await this.findOrCreateCliente(lead);
-      const valorOportunidade = parseFloat(
+      const customerId = await this.findOrCreateCustomer(lead);
+      const opportunityValue = parseFloat(
         lead.custom_fields.cf_valor_oportunidade
       );
 
-      if (valorOportunidade > 0) {
-        const pedidoId = await this.sankhyaService.createPedido({
-          clienteId: clienteId,
-          empresaId: 1,
-          vendedorId: 1,
-          produtos: [
+      if (opportunityValue > 0) {
+        const orderId = await this.sankhyaService.createOrder({
+          customerId: customerId,
+          companyId: 1,
+          sellerId: 1,
+          items: [
             {
-              produtoId: 1,
-              quantidade: 1,
-              precoUnitario: valorOportunidade,
+              productId: 1,
+              quantity: 1,
+              unitPrice: opportunityValue,
             },
           ],
         });
 
         this.logger.log(
-          `Pedido criado a partir da oportunidade. NUNOTA: ${pedidoId} - Valor: ${valorOportunidade}`
+          `Order created from opportunity. NUNOTA: ${orderId} - Value: ${opportunityValue}`
         );
       }
     } catch (error) {
-      this.logger.error(
-        "Falha ao criar pedido a partir da oportunidade",
-        error
-      );
+      this.logger.error("Failed to create order from opportunity", error);
     }
   }
 
-  private async findOrCreateCliente(data: any): Promise<number> {
+  private async findOrCreateCustomer(data: any): Promise<number> {
     try {
-      const fornecedores = await this.sankhyaService.getFornecedores({
+      const suppliers = await this.sankhyaService.getSuppliers({
         EMAIL: data.email,
       });
 
-      if (fornecedores.length > 0) {
-        return fornecedores[0].id;
+      if (suppliers.length > 0) {
+        return suppliers[0].id;
       }
     } catch (error) {
-      this.logger.warn(`Erro ao buscar fornecedor: ${data.email}`, error);
+      this.logger.warn(`Error searching supplier: ${data.email}`, error);
     }
 
-    const novoCliente: CreateFornecedorDto = {
-      nome: data.name || data.email,
+    const newCustomer: CreateSupplierDto = {
+      name: data.name || data.email,
       email: data.email,
-      telefone: data.phone || data.mobile_phone || "",
-      cpfCnpj: data.custom_fields?.cf_cpf_cnpj || "",
-      tipo: this.detectTipoPessoa(data.custom_fields?.cf_cpf_cnpj),
+      phone: data.phone || data.mobile_phone || "",
+      taxId: data.custom_fields?.cf_cpf_cnpj || "",
+      type: this.detectPersonType(data.custom_fields?.cf_cpf_cnpj),
     };
 
     try {
-      const clienteId = await this.sankhyaService.createFornecedor(novoCliente);
-      return clienteId;
+      const customerId = await this.sankhyaService.createSupplier(newCustomer);
+      return customerId;
     } catch (error) {
-      this.logger.error("Erro ao criar cliente", error);
-
+      this.logger.error("Error creating customer", error);
       return 1;
     }
   }
 
-  private detectTipoPessoa(cpfCnpj: string): string {
-    if (!cpfCnpj) return "F";
+  private detectPersonType(taxId: string): string {
+    if (!taxId) return "F";
 
-    const numbers = cpfCnpj.replace(/\D/g, "");
+    const numbers = taxId.replace(/\D/g, "");
     return numbers.length === 14 ? "J" : "F";
   }
 }

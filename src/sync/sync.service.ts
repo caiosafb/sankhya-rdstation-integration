@@ -18,32 +18,32 @@ export class SyncService {
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
-  async syncFornecedores() {
-    this.logger.log("Starting fornecedores sync...");
+  async syncSuppliers() {
+    this.logger.log("Starting suppliers sync...");
 
     try {
-      const fornecedores = await this.sankhyaService.getFornecedores();
+      const suppliers = await this.sankhyaService.getSuppliers();
 
-      for (const fornecedor of fornecedores) {
-        if (!fornecedor.email) continue;
+      for (const supplier of suppliers) {
+        if (!supplier.email) continue;
 
         const syncLog = new SyncLog();
-        syncLog.entityType = "fornecedor";
-        syncLog.entityId = fornecedor.id.toString();
+        syncLog.entityType = "supplier";
+        syncLog.entityId = supplier.id.toString();
         syncLog.source = "sankhya";
         syncLog.destination = "rdstation";
-        syncLog.data = fornecedor;
+        syncLog.data = supplier;
 
         try {
-          await this.rdStationService.createOrUpdateContact(fornecedor.email, {
-            email: fornecedor.email,
-            name: fornecedor.nome,
-            phone: fornecedor.telefone,
-            tags: ["fornecedor", "sankhya"],
+          await this.rdStationService.createOrUpdateContact(supplier.email, {
+            email: supplier.email,
+            name: supplier.name,
+            phone: supplier.phone,
+            tags: ["supplier", "sankhya"],
             custom_fields: {
-              cf_sankhya_id: fornecedor.id.toString(),
-              cf_cpf_cnpj: fornecedor.cpfCnpj,
-              cf_tipo: "fornecedor",
+              cf_sankhya_id: supplier.id.toString(),
+              cf_cpf_cnpj: supplier.taxId,
+              cf_tipo: "supplier",
             },
           });
 
@@ -51,64 +51,61 @@ export class SyncService {
         } catch (error) {
           syncLog.status = "error";
           syncLog.error = error.message;
-          this.logger.error(
-            `Failed to sync fornecedor ${fornecedor.id}`,
-            error
-          );
+          this.logger.error(`Failed to sync supplier ${supplier.id}`, error);
         }
 
         await this.syncLogRepository.save(syncLog);
       }
 
-      this.logger.log(`Synced ${fornecedores.length} fornecedores`);
+      this.logger.log(`Synced ${suppliers.length} suppliers`);
     } catch (error) {
-      this.logger.error("Fornecedores sync failed", error);
+      this.logger.error("Suppliers sync failed", error);
     }
   }
 
   @Cron(CronExpression.EVERY_30_MINUTES)
-  async syncPedidosAsConversions() {
-    this.logger.log("Starting pedidos to conversions sync...");
+  async syncOrdersAsConversions() {
+    this.logger.log("Starting orders to conversions sync...");
 
     try {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
 
-      const pedidos = await this.sankhyaService.getPedidos({
+      const orders = await this.sankhyaService.getOrders({
         DTNEG: { $gte: yesterday.toISOString() },
       });
 
-      for (const pedido of pedidos) {
+      for (const order of orders) {
         const syncLog = new SyncLog();
-        syncLog.entityType = "pedido_conversion";
-        syncLog.entityId = pedido.id.toString();
+        syncLog.entityType = "order_conversion";
+        syncLog.entityId = order.id.toString();
         syncLog.source = "sankhya";
         syncLog.destination = "rdstation";
-        syncLog.data = pedido;
+        syncLog.data = order;
 
         try {
-          const fornecedores = await this.sankhyaService.getFornecedores({
-            CODPARC: pedido.clienteId,
+          const suppliers = await this.sankhyaService.getSuppliers({
+            CODPARC: order.customerId,
           });
 
-          if (fornecedores.length > 0 && fornecedores[0].email) {
-            const cliente = fornecedores[0];
+          if (suppliers.length > 0 && suppliers[0].email) {
+            const customer = suppliers[0];
 
             await this.rdStationService.createConversion({
-              email: cliente.email,
+              email: customer.email,
               conversion_identifier: "purchase",
-              name: cliente.nome,
-              company_name: cliente.nome,
-              phone: cliente.telefone,
-              cf_order_id: pedido.id.toString(),
-              cf_order_total_value: pedido.valorTotal,
-              cf_sankhya_id: cliente.id.toString(),
+              name: customer.name,
+              company_name: customer.name,
+              phone: customer.phone,
+              cf_order_id: order.id.toString(),
+              cf_order_total_value: order.totalValue,
+              cf_sankhya_id: customer.id.toString(),
             });
 
-            await this.rdStationService.addTagsToContact(cliente.email, [
-              "cliente",
-              "comprou",
-              `pedido_${pedido.tipoMovimento}`,
+            await this.rdStationService.addTagsToContact(customer.email, [
+              "customer",
+              "purchased",
+              `order_${order.movementType}`,
             ]);
           }
 
@@ -117,7 +114,7 @@ export class SyncService {
           syncLog.status = "error";
           syncLog.error = error.message;
           this.logger.error(
-            `Failed to sync pedido ${pedido.id} as conversion`,
+            `Failed to sync order ${order.id} as conversion`,
             error
           );
         }
@@ -125,65 +122,65 @@ export class SyncService {
         await this.syncLogRepository.save(syncLog);
       }
 
-      this.logger.log(`Synced ${pedidos.length} pedidos as conversions`);
+      this.logger.log(`Synced ${orders.length} orders as conversions`);
     } catch (error) {
-      this.logger.error("Pedidos conversion sync failed", error);
+      this.logger.error("Orders conversion sync failed", error);
     }
   }
 
   @Cron(CronExpression.EVERY_2_HOURS)
-  async syncProdutosAsTags() {
-    this.logger.log("Starting produtos sync as tags...");
+  async syncProductsAsTags() {
+    this.logger.log("Starting products sync as tags...");
 
     try {
-      const produtos = await this.sankhyaService.getProdutos({ ATIVO: "S" });
+      const products = await this.sankhyaService.getProducts({ ATIVO: "S" });
 
-      const produtoTags = produtos.map((p) => `produto_${p.codigo}`);
+      const productTags = products.map((p) => `product_${p.code}`);
 
-      for (const produto of produtos) {
+      for (const product of products) {
         const syncLog = new SyncLog();
-        syncLog.entityType = "produto_tag";
-        syncLog.entityId = produto.id.toString();
+        syncLog.entityType = "product_tag";
+        syncLog.entityId = product.id.toString();
         syncLog.source = "sankhya";
         syncLog.destination = "rdstation";
         syncLog.data = {
-          ...produto,
-          tag: `produto_${produto.codigo}`,
+          ...product,
+          tag: `product_${product.code}`,
         };
         syncLog.status = "success";
 
         await this.syncLogRepository.save(syncLog);
       }
 
-      this.logger.log(`Processed ${produtos.length} produtos as tags`);
+      this.logger.log(`Processed ${products.length} products as tags`);
     } catch (error) {
-      this.logger.error("Produtos sync failed", error);
+      this.logger.error("Products sync failed", error);
     }
   }
 
-  async syncSpecificFornecedor(sankhyaId: number): Promise<void> {
-    const fornecedores = await this.sankhyaService.getFornecedores({
+  async syncSpecificSupplier(sankhyaId: number): Promise<void> {
+    const suppliers = await this.sankhyaService.getSuppliers({
       CODPARC: sankhyaId,
     });
 
-    if (fornecedores.length === 0) {
-      throw new Error(`Fornecedor not found: ${sankhyaId}`);
+    if (suppliers.length === 0) {
+      throw new Error(`Supplier not found: ${sankhyaId}`);
     }
 
-    const fornecedor = fornecedores[0];
-    if (!fornecedor.email) {
-      throw new Error(`Fornecedor has no email: ${sankhyaId}`);
+    const supplier = suppliers[0];
+    if (!supplier.email) {
+      throw new Error(`Supplier has no email: ${sankhyaId}`);
     }
 
-    await this.rdStationService.createOrUpdateContact(fornecedor.email, {
-      email: fornecedor.email,
-      name: fornecedor.nome,
-      phone: fornecedor.telefone,
-      tags: ["fornecedor", "sankhya", "sync_manual"],
+    await this.rdStationService.createOrUpdateContact(supplier.email, {
+      email: supplier.email,
+      name: supplier.name,
+      phone: supplier.phone,
+      tags: ["supplier", "sankhya", "manual_sync"],
       custom_fields: {
-        cf_sankhya_id: fornecedor.id.toString(),
-        cf_cpf_cnpj: fornecedor.cpfCnpj,
-        cf_tipo: "fornecedor",
+        cf_sankhya_id: supplier.id.toString(),
+        cf_cpf_cnpj: supplier.taxId,
+        cf_tipo: "supplier",
       },
     });
   }
