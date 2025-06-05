@@ -1,65 +1,65 @@
-export interface FornecedorDto {
+export interface SupplierDto {
   id: number;
-  nome: string;
+  name: string;
   email: string;
-  telefone: string;
-  cpfCnpj: string;
-  tipo: string;
-  ativo: boolean;
+  phone: string;
+  taxId: string;
+  type: string;
+  active: boolean;
 }
 
-export interface CreateFornecedorDto {
-  nome: string;
+export interface CreateSupplierDto {
+  name: string;
   email: string;
-  telefone?: string;
-  cpfCnpj: string;
-  tipo: string;
+  phone?: string;
+  taxId: string;
+  type: string;
 }
 
-export interface EmpresaDto {
+export interface CompanyDto {
   id: number;
-  nome: string;
-  razaoSocial: string;
-  cnpj: string;
+  name: string;
+  legalName: string;
+  taxId: string;
 }
 
-export interface ProdutoDto {
+export interface ProductDto {
   id: number;
-  nome: string;
-  codigo: string;
-  preco: number;
-  estoque: number;
-  ativo: boolean;
+  name: string;
+  code: string;
+  price: number;
+  stock: number;
+  active: boolean;
 }
 
-export interface PedidoDto {
+export interface OrderDto {
   id: number;
-  clienteId: number;
-  empresaId: number;
-  vendedorId: number;
-  data: Date;
-  valorTotal: number;
+  customerId: number;
+  companyId: number;
+  sellerId: number;
+  date: Date;
+  totalValue: number;
   status: string;
-  tipoMovimento: string;
-  numeroNota: string;
+  movementType: string;
+  invoiceNumber: string;
 }
 
-export interface CreatePedidoDto {
-  clienteId: number;
-  empresaId: number;
-  vendedorId: number;
-  produtos: ProdutoPedidoDto[];
+export interface CreateOrderDto {
+  customerId: number;
+  companyId: number;
+  sellerId: number;
+  items: OrderItemDto[];
 }
 
-export interface ProdutoPedidoDto {
-  produtoId: number;
-  quantidade: number;
-  precoUnitario: number;
+export interface OrderItemDto {
+  productId: number;
+  quantity: number;
+  unitPrice: number;
 }
 
-export interface VendedorDto {
+export interface SellerDto {
   id: number;
-  nome: string;
+  name: string;
   email: string;
-  ativo: boolean;
+  active: boolean;
 }
